@@ -17,7 +17,7 @@ end
 
 fc = [ pt' ; ones(1,n_pts)*scale/6 ; zeros(1,n_pts)];
 
-[f,descriptor] = vl_sift_toosimple(img,'frames',fc);
+[f,descriptor] = vl_sift(img,'frames',fc);
 
 f = f(1:2,:);
 fc = fc(1:2,:);

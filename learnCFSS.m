@@ -14,16 +14,19 @@ m = size(data,1);
 T = cell(1,config.stageTot);
 images = cell(m,1);
 
-model= cell(config.stageTot,1);
-for level = 1:config.stageTot
+if exist('./model/learnCFSSModelTemp.mat')
+    load ./model/learnCFSSModelTemp.mat model images targetPose priorModel T;
+else
+    model= cell(config.stageTot,1);
     % 1. Re-trans
-    if level == 1
-        [images,targetPose,priorModel,T{level}] = trainingsetGeneration(img_root,nameList,bbox,data,config.priors,...
-            mean_simple_face,target_simple_face);
-        Pr = (1-diag(ones(m,1))) ./ (m-1);
-        model{level}.tpt = targetPose;
-    end;
-    
+    [images,targetPose,priorModel,T{1}] = trainingsetGeneration(img_root,nameList,bbox,data,config.priors,...
+        mean_simple_face,target_simple_face);
+    model{1}.tpt = targetPose;
+    save ./model/learnCFSSModelTemp.mat model images targetPose priorModel T;
+end
+
+Pr = (1-diag(ones(m,1))) ./ (m-1);
+for level = 1:config.stageTot
     % 2. from Pr to sub-region center
     [model{level}.reg,currentPose] = traintestReg(images,targetPose,Pr,level,config.regs);
     

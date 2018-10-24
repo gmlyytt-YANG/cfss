@@ -30,5 +30,4 @@ parfor i = 1:length(images)
     feat(i,:) = reshape(extractSIFT_toosimple( single( images{i} ), reshape(currentPose(i,:),n_pts,2) ,scale),...
         1,128*n_pts)';
 end
-end
 
