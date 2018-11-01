@@ -23,6 +23,7 @@ function [regModel,currentPose] = traintestReg(images,targetPose,Pr,level,regsIn
 % testing according to uniform distribution
 
 % 1. Sampling both for train and test
+
 m = length(images);
 n_pts = size(targetPose,2) / 2;
 regModel = cell(regsInfo.iterTot(level),1);
@@ -52,46 +53,64 @@ end;
 
 % 2. learn regressors to get regModel
 % 2A. Augmentation
+disp('2. learn regressors to get regModel...');
+disp('2.A augmentation...')
 M = m * regsInfo.trainSampleTot(level);
 im = cell(M,1);
 tg = zeros(M,2*n_pts);
 cu = zeros(M,2*n_pts);
-for i = 1:regsInfo.trainSampleTot(level)
-    Ta = getTransRandomCross(selectPoses(targetPose,regsInfo.aug_eyes_id));
-    cu((i-1)*m+1:i*m,:) = transPoseFwd(currentPose_train(:,:,i),Ta);
-    tg((i-1)*m+1:i*m,:) = transPoseFwd(targetPose,Ta);
-    for j = 1:m
-        im{(i-1)*m+j} = imtransform(images{j},Ta(j),...
-            'XData',[1 regsInfo.win_size],'YData',[1 regsInfo.win_size]);
+model_file = sprintf('./model/traintestReg_%d.mat', level);
+if exist(model_file) 
+    str = cell2mat(['load' char(32) {['./model/traintestReg_' num2str(level) '.mat']} char(32) ' im cu tg;']);
+    eval(str);
+else 
+    for i = 1:regsInfo.trainSampleTot(level)
+        Ta = getTransRandomCross(selectPoses(targetPose,regsInfo.aug_eyes_id));
+        cu((i-1)*m+1:i*m,:) = transPoseFwd(currentPose_train(:,:,i),Ta);
+        tg((i-1)*m+1:i*m,:) = transPoseFwd(targetPose,Ta);
+        for j = 1:m
+            increment = (i-1)*m+j;
+            im{increment} = imtransform(images{j},Ta(j),...
+                'XData',[1 regsInfo.win_size],'YData',[1 regsInfo.win_size]);
+            if mod(increment, 1000) == 0
+                disp(['produced ', num2str(increment),' images']);
+            end
+        end;
+        if mod(i,2) == 0
+            tg((i-1)*m+1:i*m,1:n_pts) = regsInfo.win_size + 1 - tg((i-1)*m+1:i*m,1:n_pts);
+            tg((i-1)*m+1:i*m,:) = tg((i-1)*m+1:i*m,regsInfo.mirror);
+            cu((i-1)*m+1:i*m,1:n_pts) = regsInfo.win_size + 1 - cu((i-1)*m+1:i*m,1:n_pts);
+            cu((i-1)*m+1:i*m,:) = cu((i-1)*m+1:i*m,regsInfo.mirror);
+            for j = (i-1)*m+1:i*m, im{j} = im{j}(:,end:-1:1); end;
+        end;
     end;
-    if mod(i,2) == 0
-        tg((i-1)*m+1:i*m,1:n_pts) = regsInfo.win_size + 1 - tg((i-1)*m+1:i*m,1:n_pts);
-        tg((i-1)*m+1:i*m,:) = tg((i-1)*m+1:i*m,regsInfo.mirror);
-        cu((i-1)*m+1:i*m,1:n_pts) = regsInfo.win_size + 1 - cu((i-1)*m+1:i*m,1:n_pts);
-        cu((i-1)*m+1:i*m,:) = cu((i-1)*m+1:i*m,regsInfo.mirror);
-        for j = (i-1)*m+1:i*m, im{j} = im{j}(:,end:-1:1); end;
-    end;
+    str = cell2mat(['save' char(32) {['./model/traintestReg_' num2str(level) '.mat']} char(32) ' im cu tg;']);
+    eval(str);
 end;
+disp('2.A augmentation done');
 
 % 2B. Training iteration
+disp('2.B training...')
 featInfo.scale = regsInfo.SIFTscale;
 for iter = 1:regsInfo.iterTot(level)
-    featOri = extractSIFTs_toosimple(im,cu,iter,featInfo);
-    [featReg,pca_model] = getPCA(featOri,[]);
-    reg_model = trainLR_averagedHalfBagging(featReg,tg-cu,iter,regsInfo.regressorInfo);
+    featOri = extractSIFTs_toosimple(im,cu,iter,featInfo, level, 'traintestReg');
+    [featReg,pca_model] = getPCA(featOri,[], iter, level, 'traintestReg');
+    reg_model = trainLR_averagedHalfBagging(featReg,tg-cu,iter,regsInfo.regressorInfo, level);
     regModel{iter}.mu = pca_model.meanFeatOri;
     regModel{iter}.A = pca_model.coeff * reg_model(1:end-1,:);
     regModel{iter}.b = reg_model(end,:);
     cu = cu + (featOri - repmat(regModel{iter}.mu,M,1))*regModel{iter}.A ...
         + repmat(regModel{iter}.b,M,1);
     
-    featOri_batch = extractSIFTs_toosimple_samples(images,currentPose_test,iter,featInfo);
+    featOri_batch = extractSIFTs_toosimple_samples(images,currentPose_test,iter,featInfo, level);
     for j = 1:regsInfo.testSampleTot(level)
         currentPose_test(:,:,j) = currentPose_test(:,:,j) + ...
             (featOri_batch(:,:,j) - repmat(regModel{iter}.mu,m,1)) * regModel{iter}.A ...
             +repmat(regModel{iter}.b,m,1);
     end;
+    disp(['trained ', num2str(iter), ' models']);
 end;
+disp('2.B training done');
 
 currentPose = poseVoting(currentPose_test,regsInfo.dominantIterTot(level));
 

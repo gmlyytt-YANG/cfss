@@ -2,7 +2,7 @@
 % Any question please contact Shizhan Zhu: zhshzhutah2@gmail.com
 % Released on July 25, 2015
 
-function [featPCA,pca_model,cut_id] = getPCA(featOri,cut_id)
+function [featPCA,pca_model,cut_id] = getPCA(featOri,cut_id, iter, level, user)
 %[featPCA,pca_model,cut_id] = getPCA(featOri,cut_id)
 % pca_model: coeff(n*keep) and meanFeatOri
 
@@ -17,7 +17,15 @@ end
 featOri = bsxfun(@minus,featOri,mean(featOri,1));
 % parfor i = 1:size(featOri,1),featOri(i,:) = featOri(i,:) - pca_model.meanFeatOri; end;
 % fprintf('1');
-[U,sigma,coeff] = svd(featOri,0);
+model_file = sprintf('./model/getPCA_%d_%d_%s.mat', iter, level, user);
+if exist(model_file) 
+    str = cell2mat(['load' char(32) {['./model/getPCA_' num2str(iter) '_' num2str(level) '_' user '.mat']} char(32) ' U sigma coeff;']);
+    eval(str);
+else 
+    [U,sigma,coeff] = svd(featOri,0);
+    str = cell2mat(['save' char(32) {['./model/getPCA_' num2str(iter) '_' num2str(level) '_' user '.mat']} char(32) ' U sigma coeff;']);
+    eval(str);
+end
 clear featOri
 % fprintf('2');
 sigma = diag(sigma);

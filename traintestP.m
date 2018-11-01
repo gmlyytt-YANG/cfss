@@ -10,7 +10,7 @@ assert(size(targetPose,1) == m && size(currentPose,1) == m);
 
 % A. Prior Prob Learning
 d = currentPose - targetPose;
-[d_pca,pca_model] = getPCA(d,ceil(n_pts * probsInfo.sigmaCutoff(level)));
+[d_pca,pca_model] = getPCA(d,ceil(n_pts * probsInfo.sigmaCutoff(level)), 0, level, 'traintestP');
 PModel.sigma = diag(cov(d_pca));
 PModel.pca_model = pca_model;
 
