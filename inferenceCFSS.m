@@ -33,7 +33,7 @@ for level = 1:testConf.stageTot
     currentPose = transPoseFwd(currentPose,T{level+1});
     
     % 63. from sub-region center to Pr
-    Pr = inferenceP(images,model,currentPose,level,testConf.probs);
+    Pr = inferenceP(images,model,currentPose,level,testConf.probs, 'test');
 end;
 
 estimatedPose = currentPose;

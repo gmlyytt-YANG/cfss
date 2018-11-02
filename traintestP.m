@@ -9,14 +9,17 @@ m = length(images);
 assert(size(targetPose,1) == m && size(currentPose,1) == m);
 
 % A. Prior Prob Learning
+disp('A. Prior Prob Learning...');
 d = currentPose - targetPose;
 [d_pca,pca_model] = getPCA(d,ceil(n_pts * probsInfo.sigmaCutoff(level)), 0, level, 'traintestP');
 PModel.sigma = diag(cov(d_pca));
 PModel.pca_model = pca_model;
+disp('A. Prior Prob Learning done');
 
 % B. Features Prob Learning
-
+disp('B. Features Prob Learning...');
 % 1. Sampling for training and testing
+disp('B_1. Sampling for training and testing...');
 s = probsInfo.probSamplings(level);
 ld = cell(length(probsInfo.semantic_id),1);
 for i = 1:length(probsInfo.semantic_id)
@@ -31,8 +34,10 @@ for i = 1:length(probsInfo.semantic_id)
     ld{i}(:,:,1) = repmat(targetPose(:,probsInfo.semantic_id(i)),1,s) + dx;
     ld{i}(:,:,2) = repmat(targetPose(:,n_pts + probsInfo.semantic_id(i)),1,s) + dy;    
 end;
+disp('B_1. Sampling for training and testing done');
 
 % 2. Centralized feature extraction
+disp('B_2. Centralized feature extraction...');
 feat_all = cell(length(probsInfo.pyramidScale),1);
 feat_info.scale = probsInfo.pyramidScale;
 for pyramid = 1:length(probsInfo.pyramidScale)
@@ -45,7 +50,7 @@ for pyramid = 1:length(probsInfo.pyramidScale)
         pose(:,i,s+1) = currentPose(:,probsInfo.semantic_id(i)); % x
         pose(:,i+length(probsInfo.semantic_id),s+1) = currentPose(:,probsInfo.semantic_id(i)+n_pts); % y
     end;
-    feat_all{pyramid} = extractSIFTs_toosimple_samples(images,pose,pyramid,feat_info);
+    feat_all{pyramid} = extractSIFTs_toosimple_samples_pyramid(images,pose,pyramid,feat_info, level, 'train');
 end;
 
 featLen = 128;
@@ -71,24 +76,36 @@ for i = 1:length(probsInfo.semantic_id)
     end;
 end;
 clear feat_all;
+disp('B_2. Centralized feature extraction done');
 
 % 3. Train SVM classifiers for each landmark (using the first s
 % samples)
-svc_ = cell(length(probsInfo.semantic_id),1);
-parfor i = 1:length(probsInfo.semantic_id)
-    e = sqrt(L_train{i}(:,1).^2 + L_train{i}(:,2).^2);
-    ind_pos = find(e < probsInfo.SVCthre{level}(1) * probsInfo.SVCradius(level));
-    ind_neg = find(e > probsInfo.SVCthre{level}(2) * probsInfo.SVCradius(level));
-    ind_pos = ind_pos(:)';
-    ind_neg = ind_neg(:)';
-    HL = min(length(ind_pos),length(ind_neg));
-    assert(HL > 8 * length(probsInfo.pyramidScale) * featLen);
-    ind = [ind_pos(randperm(length(ind_pos),HL)),ind_neg(randperm(length(ind_neg),HL))];
-    svc_{i} = svmtrain([ones(HL,1);-ones(HL,1)],F_train{i}(ind,:),'-c 1 -g 0.07 -b 1 -q');
-end;
+disp('B_3. Train SVM classifiers for each landmark...');
+model_file = sprintf('./model/traintestPsvc_%d.mat', level);
+if exist(model_file) 
+    str = cell2mat(['load' char(32) {['./model/traintestPsvc_' num2str(level) '.mat']} char(32) ' svc_;']);
+    eval(str);
+else 
+    svc_ = cell(length(probsInfo.semantic_id),1);
+    parfor i = 1:length(probsInfo.semantic_id)
+        e = sqrt(L_train{i}(:,1).^2 + L_train{i}(:,2).^2);
+        ind_pos = find(e < probsInfo.SVCthre{level}(1) * probsInfo.SVCradius(level));
+        ind_neg = find(e > probsInfo.SVCthre{level}(2) * probsInfo.SVCradius(level));
+        ind_pos = ind_pos(:)';
+        ind_neg = ind_neg(:)';
+        HL = min(length(ind_pos),length(ind_neg));
+        assert(HL > 8 * length(probsInfo.pyramidScale) * featLen);
+        ind = [ind_pos(randperm(length(ind_pos),HL)),ind_neg(randperm(length(ind_neg),HL))];
+        svc_{i} = svmtrain([ones(HL,1);-ones(HL,1)],F_train{i}(ind,:),'-c 1 -g 0.07 -b 1 -q');
+    end;
+    str = cell2mat(['save' char(32) {['./model/traintestPsvc_' num2str(level) '.mat']} char(32) ' svc_;']);
+    eval(str);
+end
 PModel.SVC = svc_;
+disp('B_3. Train SVM classifiers for each landmark done');
 
 % 4. tpt analysis
+disp('B_4. tpt analysis...');
 PModel.representativeLocation = cell(length(probsInfo.semantic_id),1);
 for i = 1:length(probsInfo.semantic_id)
     location = selectPoses(targetPose,probsInfo.semantic_id(i));
@@ -97,12 +114,16 @@ for i = 1:length(probsInfo.semantic_id)
         PModel.representativeLocation{i}(j,:) = location(picked_id(j),:);
     end;
 end;
+disp('B_4. tpt analysis done');
+disp('B. Features Prob Learning done');
 
 % Learning finished, now beginning testing on training
 % C. Testing on training
+disp('C. Testing on training...');
 sudoModel{level}.P = PModel;
-Pr = inferenceP(images,sudoModel,currentPose,level,probsInfo,targetPose);
+Pr = inferenceP(images,sudoModel,currentPose,level,probsInfo,targetPose, 'train');
 for i = 1:m, Pr(i,i) = 0; Pr(i,:) = Pr(i,:) ./ sum(Pr(i,:)); end;
+disp('C. Testing on training done');
 
 end
 

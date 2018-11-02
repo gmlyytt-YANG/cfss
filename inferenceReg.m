@@ -27,7 +27,7 @@ end;
 % 62. Inference Iteration
 featInfo.scale = regsInfo.SIFTscale;
 for iter = 1:regsInfo.iterTot(level)
-    featOri_batch = extractSIFTs_toosimple_samples(images,currentPose_inference,iter,featInfo);
+    featOri_batch = extractSIFTs_toosimple_samples(images,currentPose_inference,iter,featInfo,0, 'test');
     for j = 1:regsInfo.samplingTot(level)
         currentPose_inference(:,:,j) = currentPose_inference(:,:,j) + ...
             (featOri_batch(:,:,j) - repmat(model{level}.reg{iter}.mu,m,1)) * model{level}.reg{iter}.A ...

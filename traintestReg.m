@@ -2,7 +2,7 @@
 % Any question please contact Shizhan Zhu: zhshzhutah2@gmail.com
 % Released on July 25, 2015
 
-function [regModel,currentPose] = traintestReg(images,targetPose,Pr,level,regsInfo)
+function [regModel,currentPose] = traintestReg(images,targetPose,Pr,level,regsInfo, mode)
 
 % regModel: iterTot * 1 cell, cascaded regressors
 % currentPose: m * (2*n_pts), estimated sub-region center
@@ -53,7 +53,7 @@ end;
 
 % 2. learn regressors to get regModel
 % 2A. Augmentation
-disp('2. learn regressors to get regModel...');
+
 disp('2.A augmentation...')
 M = m * regsInfo.trainSampleTot(level);
 im = cell(M,1);
@@ -93,7 +93,7 @@ disp('2.A augmentation done');
 disp('2.B training...')
 featInfo.scale = regsInfo.SIFTscale;
 for iter = 1:regsInfo.iterTot(level)
-    featOri = extractSIFTs_toosimple(im,cu,iter,featInfo, level, 'traintestReg');
+    featOri = extractSIFTs_toosimple(im,cu,iter,featInfo, level, 0, 'traintestReg', mode);
     [featReg,pca_model] = getPCA(featOri,[], iter, level, 'traintestReg');
     reg_model = trainLR_averagedHalfBagging(featReg,tg-cu,iter,regsInfo.regressorInfo, level);
     regModel{iter}.mu = pca_model.meanFeatOri;
@@ -102,7 +102,7 @@ for iter = 1:regsInfo.iterTot(level)
     cu = cu + (featOri - repmat(regModel{iter}.mu,M,1))*regModel{iter}.A ...
         + repmat(regModel{iter}.b,M,1);
     
-    featOri_batch = extractSIFTs_toosimple_samples(images,currentPose_test,iter,featInfo, level);
+    featOri_batch = extractSIFTs_toosimple_samples(images,currentPose_test,iter,featInfo, level, mode);
     for j = 1:regsInfo.testSampleTot(level)
         currentPose_test(:,:,j) = currentPose_test(:,:,j) + ...
             (featOri_batch(:,:,j) - repmat(regModel{iter}.mu,m,1)) * regModel{iter}.A ...
