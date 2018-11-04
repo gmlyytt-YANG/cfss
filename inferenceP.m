@@ -4,9 +4,12 @@
 
 function Pr = inferenceP(images,model,currentPose,level,probsInfo,tpt, mode)
 
-if ~exist('tpt','var')
+% if ~exist('tpt','var')
+%     tpt = model{level}.tpt;
+% end;
+if length(tpt) == 0
     tpt = model{level}.tpt;
-end;
+end
 n_pts = size(currentPose,2) / 2;
 m = length(images);
 mt = size(tpt,1);

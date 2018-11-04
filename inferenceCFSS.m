@@ -3,37 +3,47 @@
 % Released on July 25, 2015
 
 clear;
+disp('loading the model and data...');
 load ./data/raw_300W_release.mat bbox nameList;
 [bbox,nameList] = indexingData(3149:3837,bbox,nameList); % Testing
 img_root = './imageSource/';
 load ./model/mean_simple_face.mat mean_simple_face;
 load ./model/target_simple_face.mat target_simple_face;
 load ./model/CFSS_Model.mat priorModel testConf model;
+disp('loading the model and done');
 
 m = length(nameList);
 mt = size(model{1}.tpt,1);
 T = cell(1,testConf.stageTot);
 images = cell(m,1);
 
+disp('starting testing...');
 for level = 1:testConf.stageTot
     % 61. Re-trans
+    disp([num2str(level) '_1. Re-trans...']);
     if level == 1
         [images,T{level}] = testingsetGeneration(img_root,nameList,bbox,...
             priorModel,testConf.priors,mean_simple_face,target_simple_face);
         Pr = 1/mt * ones(m,mt);
     end;
+    disp([num2str(level) '_1. Re-trans done']);
     
     % 62. from Pr to sub-region center 
+    disp([num2str(level) '_2. from Pr to sub-region center...']);
     currentPose = inferenceReg(images,model,Pr,level,testConf.regs); 
-    
+    disp([num2str(level) '_2. from Pr to sub-region center done']);
     if level >= testConf.stageTot, break; end;
     
+    disp([num2str(level) '_2.5. coordinate trans...']);
     T{level+1} = getTransToSpecific(currentPose,priorModel.referenceShape);
     images = transImagesFwd(images,T{level+1},testConf.win_size,testConf.win_size);
     currentPose = transPoseFwd(currentPose,T{level+1});
+    disp([num2str(level) '_2.5. coordinate trans...']);
     
     % 63. from sub-region center to Pr
-    Pr = inferenceP(images,model,currentPose,level,testConf.probs, 'test');
+    disp([num2str(level) '_3. inferenceP...']);
+    Pr = inferenceP(images,model,currentPose,level,testConf.probs, [], 'test');
+    disp([num2str(level) '_3. inferenceP done']);
 end;
 
 estimatedPose = currentPose;
